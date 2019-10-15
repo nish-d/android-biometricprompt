@@ -1,191 +1,44 @@
 package com.example.kieun.biometricprompt;
 
-import android.annotation.SuppressLint;
-import android.hardware.biometrics.BiometricManager;
-import android.os.Build;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.security.keystore.KeyGenParameterSpec;
-import android.security.keystore.KeyProperties;
-import android.util.Base64;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.View;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import androidx.biometric.BiometricPrompt;
-import androidx.core.hardware.fingerprint.FingerprintManagerCompat;
-import androidx.core.view.GravityCompat;
-import androidx.drawerlayout.widget.DrawerLayout;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.navigation.NavigationView;
-import com.google.android.material.snackbar.Snackbar;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.KeyStore;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.Signature;
-import java.security.SignatureException;
-import java.security.spec.ECGenParameterSpec;
-import java.util.UUID;
 import java.util.concurrent.Executor;
+//import android.hardware.biometrics.BiometricManager;
 
-public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener {
+public class MainActivity extends AppCompatActivity {
     private static final String TAG = MainActivity.class.getName();
-
-    private String mToBeSignedMessage;
-
-    // Unique identifier of a key pair
-    private static final String KEY_NAME = UUID.randomUUID().toString();
+    private DeviceLockManager deviceLockManager;
+    FloatingActionButton fab;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-
-        FloatingActionButton fab = findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @SuppressLint("WrongConstant")
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
+        //deviceLockManager = new DeviceLockManager(getAuthenticationCallback(), getMainThreadExecutor(), this);
+        fab = findViewById(R.id.fab);
+        fab.setOnClickListener(view -> {
+            deviceLockManager = new DeviceLockManager(getAuthenticationCallback(), getMainThreadExecutor(), this);
+            if (!showBiometricPrompt()) {
+                //ask user to enroll
+                Toast.makeText(MainActivity.this, "Cannot use biometric", Toast.LENGTH_SHORT).show();
+                deviceLockManager.askUserToEnroll();
             }
         });
-
-        DrawerLayout drawer = findViewById(R.id.drawer_layout);
-        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
-                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
-        drawer.addDrawerListener(toggle);
-        toggle.syncState();
-
-        NavigationView navigationView = findViewById(R.id.nav_view);
-        navigationView.setNavigationItemSelectedListener(this);
     }
 
-    @Override
-    public void onBackPressed() {
-        DrawerLayout drawer = findViewById(R.id.drawer_layout);
-        if (drawer.isDrawerOpen(GravityCompat.START)) {
-            drawer.closeDrawer(GravityCompat.START);
-        } else {
-            super.onBackPressed();
-        }
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
-
-    @Override
-    public boolean onNavigationItemSelected(MenuItem item) {
-        // Handle navigation view item clicks here.
-        int id = item.getItemId();
-
-        if (id == R.id.nav_register) {
-            if (canAuthenticateWithBiometrics()) {  // Check whether this device can authenticate with biometrics
-                Log.i(TAG, "Try registration");
-                // Generate keypair and init signature
-                Signature signature;
-                try {
-                    KeyPair keyPair = generateKeyPair(KEY_NAME, true);
-                    // Send public key part of key pair to the server, this public key will be used for authentication
-                    mToBeSignedMessage = Base64.encodeToString(keyPair.getPublic().getEncoded(), Base64.URL_SAFE) +
-                            ":" +
-                            KEY_NAME +
-                            ":" +
-                            // Generated by the server to protect against replay attack
-                            "12345";
-
-                    signature = initSignature(KEY_NAME);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-
-                // Create biometricPrompt
-                showBiometricPrompt(signature);
-            } else {
-                // Cannot use biometric prompt
-                Toast.makeText(this, "Cannot use biometric", Toast.LENGTH_SHORT).show();
-            }
-        } else if (id == R.id.nav_authenticate) {
-            if (canAuthenticateWithBiometrics()) {  // Check whether this device can authenticate with biometrics
-                Log.i(TAG, "Try authentication");
-
-                // Init signature
-                Signature signature;
-                try {
-                    // Send key name and challenge to the server, this message will be verified with registered public key on the server
-                    mToBeSignedMessage = KEY_NAME +
-                            ":" +
-                            // Generated by the server to protect against replay attack
-                            "12345";
-                    signature = initSignature(KEY_NAME);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-
-                // Create biometricPrompt
-                showBiometricPrompt(signature);
-            } else {
-                // Cannot use biometric prompt
-                Toast.makeText(this, "Cannot use biometric", Toast.LENGTH_SHORT).show();
-            }
-        }
-
-        DrawerLayout drawer = findViewById(R.id.drawer_layout);
-        drawer.closeDrawer(GravityCompat.START);
-        return true;
-    }
-
-    private void showBiometricPrompt(Signature signature) {
-        BiometricPrompt.AuthenticationCallback authenticationCallback = getAuthenticationCallback();
-        BiometricPrompt mBiometricPrompt = new BiometricPrompt(this, getMainThreadExecutor(), authenticationCallback);
-
-        // Set prompt info
-        BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-                .setDescription("Description")
-                .setTitle("Title")
-                .setSubtitle("Subtitle")
-                .setNegativeButtonText("Cancel")
-                .build();
-
-        // Show biometric prompt
-        if (signature != null) {
-            Log.i(TAG, "Show biometric prompt");
-            mBiometricPrompt.authenticate(promptInfo, new BiometricPrompt.CryptoObject(signature));
-        }
+    private boolean showBiometricPrompt() {
+        return deviceLockManager.authenticate("Title", "Subtitle", "Description");
     }
 
     private BiometricPrompt.AuthenticationCallback getAuthenticationCallback() {
@@ -194,85 +47,22 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
+                Toast.makeText(MainActivity.this, "Error + " + errorCode + " " + errString, Toast.LENGTH_SHORT).show();
             }
 
             @Override
             public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                 Log.i(TAG, "onAuthenticationSucceeded");
                 super.onAuthenticationSucceeded(result);
-                if (result.getCryptoObject() != null &&
-                        result.getCryptoObject().getSignature() != null) {
-                    try {
-                        Signature signature = result.getCryptoObject().getSignature();
-                        signature.update(mToBeSignedMessage.getBytes());
-                        String signatureString = Base64.encodeToString(signature.sign(), Base64.URL_SAFE);
-                        // Normally, ToBeSignedMessage and Signature are sent to the server and then verified
-                        Log.i(TAG, "Message: " + mToBeSignedMessage);
-                        Log.i(TAG, "Signature (Base64 EncodeD): " + signatureString);
-                        Toast.makeText(getApplicationContext(), mToBeSignedMessage + ":" + signatureString, Toast.LENGTH_SHORT).show();
-                    } catch (SignatureException e) {
-                        throw new RuntimeException();
-                    }
-                } else {
-                    // Error
-                    Toast.makeText(getApplicationContext(), "Something wrong", Toast.LENGTH_SHORT).show();
-                }
+                Toast.makeText(MainActivity.this, "Success", Toast.LENGTH_SHORT).show();
             }
 
             @Override
             public void onAuthenticationFailed() {
                 super.onAuthenticationFailed();
+                Toast.makeText(MainActivity.this, "Failure", Toast.LENGTH_SHORT).show();
             }
         };
-    }
-
-    private KeyPair generateKeyPair(String keyName, boolean invalidatedByBiometricEnrollment) throws Exception {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore");
-
-        KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(keyName,
-                KeyProperties.PURPOSE_SIGN)
-                .setAlgorithmParameterSpec(new ECGenParameterSpec("secp256r1"))
-                .setDigests(KeyProperties.DIGEST_SHA256,
-                        KeyProperties.DIGEST_SHA384,
-                        KeyProperties.DIGEST_SHA512)
-                // Require the user to authenticate with a biometric to authorize every use of the key
-                .setUserAuthenticationRequired(true);
-
-        // Generated keys will be invalidated if the biometric templates are added more to user device
-        if (Build.VERSION.SDK_INT >= 24) {
-            builder.setInvalidatedByBiometricEnrollment(invalidatedByBiometricEnrollment);
-        }
-
-        keyPairGenerator.initialize(builder.build());
-
-        return keyPairGenerator.generateKeyPair();
-    }
-
-    @Nullable
-    private KeyPair getKeyPair(String keyName) throws Exception {
-        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-        keyStore.load(null);
-        if (keyStore.containsAlias(keyName)) {
-            // Get public key
-            PublicKey publicKey = keyStore.getCertificate(keyName).getPublicKey();
-            // Get private key
-            PrivateKey privateKey = (PrivateKey) keyStore.getKey(keyName, null);
-            // Return a key pair
-            return new KeyPair(publicKey, privateKey);
-        }
-        return null;
-    }
-
-    @Nullable
-    private Signature initSignature (String keyName) throws Exception {
-        KeyPair keyPair = getKeyPair(keyName);
-
-        if (keyPair != null) {
-            Signature signature = Signature.getInstance("SHA256withECDSA");
-            signature.initSign(keyPair.getPrivate());
-            return signature;
-        }
-        return null;
     }
 
     private Executor getMainThreadExecutor() {
@@ -288,21 +78,31 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    /**
-     * Indicate whether this device can authenticate the user with biometrics
-     * @return true if there are any available biometric sensors and biometrics are enrolled on the device, if not, return false
-     */
-    private boolean canAuthenticateWithBiometrics() {
-        // Check whether the fingerprint can be used for authentication (Android M to P)
-        if (Build.VERSION.SDK_INT < 29) {
-            FingerprintManagerCompat fingerprintManagerCompat = FingerprintManagerCompat.from(this);
-            return fingerprintManagerCompat.hasEnrolledFingerprints() && fingerprintManagerCompat.isHardwareDetected();
-        } else {    // Check biometric manager (from Android Q)
-            BiometricManager biometricManager = this.getSystemService(BiometricManager.class);
-            if (biometricManager != null) {
-                return biometricManager.canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS;
-            }
-            return false;
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        switch (requestCode) {
+            case DeviceLockManager.LOCK_REQUEST_CODE:
+                if (resultCode == RESULT_OK) {
+                    //If screen lock authentication is success update text
+                    Toast.makeText(MainActivity.this, "LOCK_REQUEST_CODE Success", Toast.LENGTH_SHORT).show();
+                } else {
+                    //If screen lock authentication is failed update text
+                    Toast.makeText(MainActivity.this, "LOCK_REQUEST_CODE Failure", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            case DeviceLockManager.SECURITY_SETTING_REQUEST_CODE:
+                //When user is enabled Security settings then we don't get any kind of RESULT_OK
+                //So we need to check whether device has enabled screen lock or not
+                if (deviceLockManager.isDeviceSecure()) {
+                    //If screen lock enabled show toast and start intent to authenticate user
+                    Toast.makeText(MainActivity.this, "SECURITY_SETTING_REQUEST_CODE Success", Toast.LENGTH_SHORT).show();
+                    showBiometricPrompt();
+                } else {
+                    //If screen lock is not enabled just update text
+                    Toast.makeText(MainActivity.this, "SECURITY_SETTING_REQUEST_CODE device not secure", Toast.LENGTH_SHORT).show();
+                }
+                break;
         }
     }
 }
