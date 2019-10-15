@@ -1,4 +1,4 @@
-package com.example.kieun.biometricprompt
+package com.nishitadutta.biometricprompt
 
 import android.annotation.SuppressLint
 import android.app.KeyguardManager
@@ -94,7 +94,7 @@ open class DeviceLockManager(private var authenticationCallback: BiometricPrompt
             }
             return true
         }
-        return false;
+        return false
     }
 
     private fun showDeviceLockPrompt(title: String, description: String) {

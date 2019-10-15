@@ -1,4 +1,4 @@
-package com.example.kieun.biometricprompt;
+package com.nishitadutta.biometricprompt;
 
 import android.content.Intent;
 import android.os.Bundle;
